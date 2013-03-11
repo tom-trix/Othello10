@@ -84,8 +84,8 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                 var field = new Field(aggressor, user);
                                 user.field = field;
                                 aggressor.field = field;
-                                user.send({type: 'passive', data: field.getField()});
-                                aggressor.send({type: 'active', data: field.getField()});
+                                user.send({type: 'passive', data: field.getChangedCells()});
+                                aggressor.send({type: 'active', data: field.getChangedCells()});
                             }
                             else user.send({type: 'error', data: 2});
                         }
@@ -94,21 +94,25 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                     case 'step':
                         if (user!=null && user.state == 'ACTIVE') {
                             var enemy = user.enemy;
-                            var field = user.field;
-                            if (field!=null && enemy!=null && enemy.state == 'PASSIVE') {
-                                var stepResult = field.doStep(user, json.data.x, json.data.y);
+                            var fld = user.field;
+                            if (fld!=null && enemy!=null && enemy.state == 'PASSIVE') {
+                                var stepResult = fld.doStep(user, json.data.x, json.data.y);
                                 switch (stepResult) {
                                     case 'CONTINUE':
                                         user.state = 'PASSIVE';
                                         enemy.state = 'ACTIVE';
-                                        user.send({type: 'passive', data: field.getField()});
-                                        enemy.send({type: 'active', data: field.getField()});
+                                        user.send({type: 'passive', data: fld.getChangedCells()});
+                                        enemy.send({type: 'active', data: fld.getChangedCells()});
                                         break;
                                     case 'FINISH':
                                         user.state = 'ONLINE';
                                         enemy.state = 'ONLINE';
-                                        user.send({type: 'finish', data: field.getField()});
-                                        enemy.send({type: 'finish', data: field.getField()});
+                                        user.enemy = null;
+                                        enemy.enemy = null;
+                                        user.field = null;
+                                        enemy.field = null;
+                                        user.send({type: 'finish', data: fld.getChangedCells()});
+                                        enemy.send({type: 'finish', data: fld.getChangedCells()});
                                         break;
                                     default:
                                         console.log('Error step result from field ' + stepResult);
@@ -123,6 +127,11 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         if (user!=null && user.state == 'ONLINE')
                             user.send({type: 'rating', data: 'not_implemented'}); //TODO
                         else user.send({type: 'error', data: 6});
+                        break;
+                    case 'score':
+                        if (user!=null && user.field!=null && (user.state == 'ACTIVE' || user.state == 'PASSIVE'))
+                            user.send({type: 'score', data: user.field.getScore(user)});
+                        else user.send({type: 'error', data: 7});
                         break;
                     default:
                         console.log('Unknown type: ' + json.type);
@@ -142,6 +151,10 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
 
 
 function User(connect, name, state, history) {
+    this.connect = connect;
+    this.name = name;
+    this.state = state;
+    this.history = history;
     this.enemy = null;
     this.field = null;
 
@@ -151,11 +164,89 @@ function User(connect, name, state, history) {
 }
 
 function Field(aggressor, victim) {
+    // cells are the elements of a field (E = EMPTY, A = AGGRESSOR, V = VICTIM)
+    var cells = [];
+    for(var i=0; i<10; i++)
+        for(var j=0; j<10; j++)
+            cells[i][j] = 'E';
+    cells[4][4] = 'A';
+    cells[5][5] = 'A';
+    cells[4][5] = 'V';
+    cells[5][4] = 'V';
+    // changedCells is the optimisation: it keeps only those cells that were changed before
+    var changedCells = [];
+    for(var k=0; k<10; k++)
+        for(var m=0; m<10; m++)
+            changedCells.push({x: k, y: m, data: cells[k][m]});
+
     this.doStep = function(user, x, y) {
-        return 'CONTINUE';  //TODO
+        if (!ok(x, y) || cells[x][y] != 'E') return 'ERROR_0';
+        changedCells.length = 0;
+        switch (user) {
+            case aggressor:
+                acquire(x, y, 'A', 'V');
+                break;
+            case victim:
+                acquire(x, y, 'V', 'A');
+                break;
+            default:
+                return 'ERROR_1';
+        }
     };
 
-    this.getField = function() {
-        return 5;           //TODO
+    this.getChangedCells = function() {
+        return changedCells;
     };
+
+    this.getScore = function(user) {
+        var agressorScore = 0;
+        var victimScore = 0;
+        for (var i=0; i<10; i++)
+            for (var j=0; j<10; j++)
+                if (cells[i][j] == 'A') agressorScore++;
+                else if (cells[i][j] == 'V') victimScore++;
+        switch (user) {
+            case aggressor:
+                return {mine: agressorScore, his: victimScore, percent: agressorScore/(agressorScore+victimScore)};
+            case victim:
+                return {mine: victimScore, his: agressorScore, percent: victimScore/(agressorScore+victimScore)};
+            default:
+                return 'ERROR_2';
+        }
+    };
+
+    /**
+     * performs the calculation of the cell[x,y] following the rules of the game
+     * @param x
+     * @param y
+     * @param mine
+     * @param his
+     */
+    function acquire(x, y, mine, his) {
+        cells[x][y] = mine;
+        changedCells.push({x: x, y: y, data: mine});
+        for (var i=-2; i<=2; i+=2)
+            for (var j=-2; j<=2; j+=2)
+                if (ok(x+i, y+j) && cells[x+i][y+j]==mine && cells[x+i-sign(i)][y+j-sign(j)]==his) {
+                    cells[x+i-sign(i)][y+j-sign(j)] = mine;
+                    changedCells.push({x: x+i-sign(i), y: y+j-sign(j), data: mine});
+                }
+    }
+
+    /**
+     * Checks whether the cell is inside the field
+     * @param x
+     * @param y
+     * @return {Boolean}
+     */
+    function ok(x, y) {
+        return (x>=0 && y>=0 && x<10 && y<10);
+    }
+
+    /**
+     * returns signum(x)
+     * @param x
+     * @return {Number}
+     */
+    function sign(x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
 }
