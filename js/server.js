@@ -192,6 +192,7 @@ function Field(aggressor, victim) {
             default:
                 return 'ERROR_1';
         }
+        return isFinished() ? 'FINISH' : 'CONTINUE';
     };
 
     this.getChangedCells = function() {
@@ -214,6 +215,18 @@ function Field(aggressor, victim) {
                 return 'ERROR_2';
         }
     };
+
+    /**
+     * checks whether the game is over
+     * @return {Boolean}
+     */
+    function isFinished() {
+        for(var i=0; i<10; i++)
+            for(var j=0; j<10; j++)
+                if (cells[i][j] == 'E')
+                    return false;
+        return true;
+    }
 
     /**
      * performs the calculation of the cell[x,y] following the rules of the game
