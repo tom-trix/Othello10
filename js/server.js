@@ -151,7 +151,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
 
     // client shut down
     connection.on('close', function(conn) {
-        console.log((new Date()) + ' Client "' + (user!=null ? user.name : 'unknown') + '" shut down...');
+        console.log((new Date()) + ' Client "' + (user!=null ? user.name : 'unknown') + '" shut down... ' + conn.toString());
         if (user!=null)
             user.state = 'OFFLINE';
     });
