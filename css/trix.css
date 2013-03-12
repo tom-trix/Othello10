@@ -1,0 +1,15 @@
+h2 {
+    background: #C0C0FF;
+    margin-top: 10px;
+    margin-bottom: 0px;
+    cursor: pointer;
+    padding: 1px 3px;
+}
+
+.button {
+    border: solid #C0C0FF;
+    background: none repeat scroll 0 0 #EDF5E1;
+    position: relative;
+    width: 100px;
+    height: 28px;
+}
