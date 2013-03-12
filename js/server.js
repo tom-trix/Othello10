@@ -1,8 +1,7 @@
 // imports
 var webSocketServer = require('websocket').server;
 var http = require('http');
-var mongo = require('mongojs')
-var utils = require('./utils');
+var mongo = require('mongojs');
 
 
 
@@ -111,6 +110,8 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                         enemy.enemy = null;
                                         user.field = null;
                                         enemy.field = null;
+                                        user.history.push(fld.getScore(user).percent);
+                                        enemy.history.push(fld.getScore(enemy).percent);
                                         user.send({type: 'finish', data: fld.getChangedCells()});
                                         enemy.send({type: 'finish', data: fld.getChangedCells()});
                                         break;
@@ -124,8 +125,14 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         else user.send({type: 'error', data: 3});
                         break;
                     case 'rating':
-                        if (user!=null && user.state == 'ONLINE')
-                            user.send({type: 'rating', data: 'not_implemented'}); //TODO
+                        if (user!=null && user.state == 'ONLINE') {
+                            _users.sort(function(a, b) {
+                                for (var ratinga=0, i=0; i<a.history.length; i++) ratinga+=a.history[i];
+                                for (var ratingb=0, j=0; j<b.history.length; j++) ratingb+=a.history[j];
+                                return ratinga > ratingb ? 1 : ratinga < ratingb ? -1 : 0;
+                            });
+                            // TODO формирование рейтинга
+                        }
                         else user.send({type: 'error', data: 6});
                         break;
                     case 'score':
@@ -165,8 +172,7 @@ function User(connect, name, state, history) {
 
 function Field(aggressor, victim) {
     // cells are the elements of a field (E = EMPTY, A = AGGRESSOR, V = VICTIM)
-    var cells = [];
-    for(var i=0; i<10; i++)
+    for(var cells=[], i=0; i<10; i++)
         for(var j=0; j<10; j++)
             cells[i][j] = 'E';
     cells[4][4] = 'A';
@@ -174,8 +180,7 @@ function Field(aggressor, victim) {
     cells[4][5] = 'V';
     cells[5][4] = 'V';
     // changedCells is the optimisation: it keeps only those cells that were changed before
-    var changedCells = [];
-    for(var k=0; k<10; k++)
+    for(var changedCells=[], k=0; k<10; k++)
         for(var m=0; m<10; m++)
             changedCells.push({x: k, y: m, data: cells[k][m]});
 
@@ -200,9 +205,7 @@ function Field(aggressor, victim) {
     };
 
     this.getScore = function(user) {
-        var agressorScore = 0;
-        var victimScore = 0;
-        for (var i=0; i<10; i++)
+        for (var agressorScore=0, victimScore=0, i=0; i<10; i++)
             for (var j=0; j<10; j++)
                 if (cells[i][j] == 'A') agressorScore++;
                 else if (cells[i][j] == 'V') victimScore++;
