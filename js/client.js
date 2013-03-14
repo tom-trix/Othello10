@@ -1,14 +1,17 @@
 // closure-handlers
 goog.events.listen(goog.dom.getElement('auth'), goog.events.EventType.CLICK, function(e) {
     send('auth', goog.dom.getElement('txtauth').value);
+    e.preventDefault();
 });
 
 goog.events.listen(goog.dom.getElement('challenge'), goog.events.EventType.CLICK, function(e) {
     send('challenge', goog.dom.getElement('txtchallenge').value);
+    e.preventDefault();
 });
 
 goog.events.listen(goog.dom.getElement('accept'), goog.events.EventType.CLICK, function(e) {
     send('accept', '88');
+    e.preventDefault();
 });
 
 
@@ -55,10 +58,12 @@ connection.onmessage = function (message) {
                 goog.dom.getElement('accept').value = 'Accept (' + json.data + ')';
                 break;
             case 'active':
-                alert('active! ' + json.data);
+                alert('active! ');
+                new ru.tomtrix.othello.Field(json.data);
                 break;
             case 'passive':
-                alert('passive! ' + json.data);
+                alert('passive! ');
+                new ru.tomtrix.othello.Field(json.data);
                 break;
             default:
                 console.log("Unknown type: " + json.type);
