@@ -16,7 +16,7 @@ var _users = [];
 var db = mongo.connect('localhost:27017/Othello', ['users']);
 db.users.find({}, function(err, data) {
     for (var i=0; i<data.length; i++) {
-        var user = new User(null, data[i].name, 'OFFLINE');
+        var user = new User(null, data[i].name, StateEnum.OFFLINE);
         user.history = data[i].history;
         _users[user.name] = user;
     }
@@ -26,7 +26,7 @@ db.users.find({}, function(err, data) {
 
 
 // create HTTP-Server
-var port = 2666;
+const port = 2666;
 var _server = http.createServer();
 _server.listen(port, function() {
     console.log((new Date()) + ' Server is listening on port ' + port);
@@ -55,70 +55,70 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         var userName = json.data;
                         user = _users[userName];
                         if (user == null) {
-                            user = new User(connection, userName, 'ONLINE');
+                            user = new User(connection, userName, StateEnum.ONLINE);
                             _users[userName] = user;
                         }
                         else {
                             user.connect = connection;
-                            user.state = 'ONLINE';
+                            user.state = StateEnum.ONLINE;
                         }
-                        user.send({type: 'ok'});
+                        user.send('ok');
                         break;
                     case 'challenge':
                         var victimName = json.data;
                         var victim =_users[victimName];
-                        if (user!=null && victim!=null && user.state == 'ONLINE' && victim.state == 'ONLINE') {
-                            user.state = 'WAIT';
-                            victim.state = 'WAIT';
+                        if (user!=null && victim!=null && user.state == StateEnum.ONLINE && victim.state == StateEnum.ONLINE) {
+                            user.state = StateEnum.WAIT;
+                            victim.state = StateEnum.WAIT;
                             victim.enemy = user;
-                            user.send({type: 'ok'});
-                            victim.send({type: 'challenge', data: user.name});
+                            user.send('ok');
+                            victim.send('challenge', user.name);
                         }
-                        else user.send({type: 'error', data: 0});
+                        else user.send('error', {error: 'challenge', user: user, victim: victim});
                         break;
                     case 'accept':
-                        if (user!=null && user.state == 'WAIT') {
+                        if (user!=null && user.state == StateEnum.WAIT) {
                             var aggressor = user.enemy;
-                            if (aggressor != null && aggressor.state == 'WAIT') {
+                            if (aggressor != null && aggressor.state == StateEnum.WAIT) {
                                 aggressor.enemy = user;
-                                user.state = 'PASSIVE';
-                                aggressor.state = 'ACTIVE';
+                                user.state = StateEnum.PASSIVE;
+                                aggressor.state = StateEnum.ACTIVE;
                                 var field = new Field(aggressor, user);
                                 user.field = field;
                                 aggressor.field = field;
-                                user.send({type: 'passive', data: field.getChangedCells()});
-                                aggressor.send({type: 'active', data: field.getChangedCells()});
+                                user.send('passive', field.getChangedCells());
+                                aggressor.send('active', field.getChangedCells());
                             }
-                            else user.send({type: 'error', data: 2});
+                            else user.send('error', {error: 'accept2', aggressor: aggressor});
                         }
-                        else user.send({type: 'error', data: 1});
+                        else user.send('error', {error: 'accept1', user: user});
                         break;
                     case 'step':
-                        if (user!=null && user.state == 'ACTIVE') {
+                        if (user!=null && user.state == StateEnum.ACTIVE) {
                             var enemy = user.enemy;
                             var fld = user.field;
-                            if (fld!=null && enemy!=null && enemy.state == 'PASSIVE') {
+                            if (fld!=null && enemy!=null && enemy.state == StateEnum.PASSIVE) {
                                 var stepResult = fld.doStep(user, json.data.x, json.data.y);
-                                user.send({type: 'score', data: user.field.getScore(user)});
-                                enemy.send({type: 'score', data: enemy.field.getScore(enemy)});
+                                user.send('score', user.field.getScore(user));
+                                enemy.send('score', enemy.field.getScore(enemy));
                                 switch (stepResult) {
                                     case 'CONTINUE':
-                                        user.state = 'PASSIVE';
-                                        enemy.state = 'ACTIVE';
-                                        user.send({type: 'passive', data: fld.getChangedCells()});
-                                        enemy.send({type: 'active', data: fld.getChangedCells()});
+                                        user.state = StateEnum.PASSIVE;
+                                        enemy.state = StateEnum.ACTIVE;
+                                        user.send('passive', fld.getChangedCells());
+                                        enemy.send('active', fld.getChangedCells());
                                         break;
                                     case 'FINISH':
-                                        user.state = 'ONLINE';
-                                        enemy.state = 'ONLINE';
+                                        user.state = StateEnum.ONLINE;
+                                        enemy.state = StateEnum.ONLINE;
                                         user.enemy = null;
                                         enemy.enemy = null;
                                         user.field = null;
                                         enemy.field = null;
                                         user.history.push(fld.getScore(user).percent);
                                         enemy.history.push(fld.getScore(enemy).percent);
-                                        user.send({type: 'finish', data: fld.getChangedCells()});
-                                        enemy.send({type: 'finish', data: fld.getChangedCells()});
+                                        user.send('finish', fld.getChangedCells());
+                                        enemy.send('finish', fld.getChangedCells());
                                         db.users.remove();
                                         for (var j in _users) {
                                             var us = _users[j];
@@ -127,15 +127,15 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                         break;
                                     default:
                                         console.log('Error step result from field ' + stepResult);
-                                        user.send({type: 'error', data: 5});
+                                        user.send('error', 'unknown constant ' + stepResult);
                                 }
                             }
-                            else user.send({type: 'error', data: 4});
+                            else user.send('error', {error: 'step2', field: fld, enemy: enemy});
                         }
-                        else user.send({type: 'error', data: 3});
+                        else user.send('error', {error: 'step1', user: user});
                         break;
                     case 'rating':
-                        if (user!=null && user.state == 'ONLINE') {
+                        if (user!=null && user.state == StateEnum.ONLINE) {
                             var rating = [];
                             for (var i in _users) {
                                 var usr = _users[i];
@@ -143,6 +143,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                 var histSize = history.length;
                                 rating.push({
                                     name: usr.name,
+                                    state: usr.state,
                                     games: histSize,
                                     wins: history.filter(function(a) {return a > 0.5}).length,
                                     loses: history.filter(function(a) {return a < 0.5}).length,
@@ -151,9 +152,9 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                 });
                             }
                             rating.sort(function(a, b) {return a.percent < b.percent ? 1 : -1});
-                            user.send({type: 'rating', data: rating});
+                            user.send('rating', rating);
                         }
-                        else user.send({type: 'error', data: 6});
+                        else user.send('error', {error: 'rating', user: user});
                         break;
                     default:
                         console.log('Unknown type: ' + json.type);
@@ -168,7 +169,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
     connection.on('close', function(conn) {
         console.log((new Date()) + ' Client "' + (user!=null ? user.name : 'unknown') + '" shut down... ' + conn.toString());
         if (user!=null)
-            user.state = 'OFFLINE';
+            user.state = StateEnum.OFFLINE;
     });
 });
 
@@ -176,24 +177,49 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
  * User object
  * @param connect
  * @param name
- * @param state (ONLINE, WAIT, ACTIVE, PASSIVE, OFFLINE)
+ * @param state {StateEnum}
  * @constructor
  */
 function User(connect, name, state) {
+    /**
+     * Websocket connection
+     * @type {Connection}
+     */
     this.connect = connect;
+    /**
+     * Username
+     * @type {String}
+     */
     this.name = name;
+    /**
+     * User state
+     * @type {number}
+     */
     this.state = state;
+    /**
+     * History of battle results (in %)
+     * @type {Array}
+     */
     this.history = [];
+    /**
+     * Current enemy in the battle
+     * @type {User}
+     */
     this.enemy = null;
+    /**
+     * Reference to a field where a battle happens
+     * @type {Field}
+     */
     this.field = null;
 
     /**
      * Send an object to client through the websocket
-     * @param obj
+     * @param type type of the message {String}
+     * @param data data to send
      */
-    this.send = function(obj) {
-        this.connect.sendUTF(JSON.stringify(obj));
-        console.log('>> Message send to "' + this.name + '": ' + JSON.stringify(obj));
+    this.send = function(type, data) {
+        this.connect.sendUTF(JSON.stringify({type: type, data: data}));
+        console.log('>> Message send to "' + this.name + '": ' + JSON.stringify({type: type, data: data}));
     }
 }
 
@@ -321,3 +347,15 @@ function Field(aggressor, victim) {
      */
     function sign(x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
 }
+
+/**
+ * User states
+ * @type {{ONLINE: number, OFFLINE: number, ACTIVE: number, PASSIVE: number, WAIT: number}}
+ */
+StateEnum = {
+    ONLINE: 0,
+    OFFLINE: 1,
+    ACTIVE: 2,
+    PASSIVE: 3,
+    WAIT: 4
+};
