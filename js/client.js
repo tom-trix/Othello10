@@ -23,35 +23,33 @@ websocket.addHandler("ok", function(data) {
     console.log('ok ' + data);
 });
 
-websocket.addHandler("error", function(data) {
+websocket.addHandler('error', function(data) {
     console.log('server internal error: ' + data);
 });
 
-websocket.addHandler("challenge", function(data) {
+websocket.addHandler('challenge', function(data) {
     goog.style.showElement(goog.dom.getElement('accept'), true);
     goog.dom.getElement('accept').innerHTML = 'Accept (' + data + ')';
 });
 
-websocket.addHandler("active", function(data) {
+websocket.addHandler('active', function(data) {
     if (user==null) return;
     user.updateField(data);
     user.setActive(true);
-    websocket.send("score", null);
 });
 
-websocket.addHandler("passive", function(data) {
-    if (user==null) return;
-    user.updateField(data);
-    user.setActive(false);
-    websocket.send("score", null);
-});
-
-websocket.addHandler("finish", function(data) {
+websocket.addHandler('passive', function(data) {
     if (user==null) return;
     user.updateField(data);
     user.setActive(false);
 });
 
-websocket.addHandler("score", function(data) {
+websocket.addHandler('finish', function(data) {
+    if (user==null) return;
+    user.updateField(data);
+    user.setActive(false);
+});
+
+websocket.addHandler('score', function(data) {
     goog.dom.getElement('score').innerHTML = data.mine + "/" + data.his + '(' + Math.ceil(100*data.percent) + '%)'
 });

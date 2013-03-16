@@ -13,9 +13,13 @@ var _users = [];
 
 
 // load data from MongoDB
-var db = mongo.connect('46.146.231.100/Auction', ['goods']);
-db.goods.find({}, function(err, page) {
-    _rating = page;
+var db = mongo.connect('localhost:27017/Othello', ['users']);
+db.users.find({}, function(err, data) {
+    for (var i=0; i<data.length; i++) {
+        var user = new User(null, data[i].name, 'OFFLINE');
+        user.history = data[i].history;
+        _users[user.name] = user;
+    }
 });
 
 
@@ -95,6 +99,8 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                             var fld = user.field;
                             if (fld!=null && enemy!=null && enemy.state == 'PASSIVE') {
                                 var stepResult = fld.doStep(user, json.data.x, json.data.y);
+                                user.send({type: 'score', data: user.field.getScore(user)});
+                                enemy.send({type: 'score', data: enemy.field.getScore(enemy)});
                                 switch (stepResult) {
                                     case 'CONTINUE':
                                         user.state = 'PASSIVE';
@@ -113,6 +119,11 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                         enemy.history.push(fld.getScore(enemy).percent);
                                         user.send({type: 'finish', data: fld.getChangedCells()});
                                         enemy.send({type: 'finish', data: fld.getChangedCells()});
+                                        db.users.remove();
+                                        for (var j in _users) {
+                                            var us = _users[j];
+                                            db.users.insert({name: us.name, history: us.history});
+                                        }
                                         break;
                                     default:
                                         console.log('Error step result from field ' + stepResult);
@@ -143,11 +154,6 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                             user.send({type: 'rating', data: rating});
                         }
                         else user.send({type: 'error', data: 6});
-                        break;
-                    case 'score':
-                        if (user!=null && user.field!=null && (user.state == 'ACTIVE' || user.state == 'PASSIVE'))
-                            user.send({type: 'score', data: user.field.getScore(user)});
-                        else user.send({type: 'error', data: 7});
                         break;
                     default:
                         console.log('Unknown type: ' + json.type);
@@ -199,7 +205,7 @@ function User(connect, name, state) {
  */
 function Field(aggressor, victim) {
     // field NxN
-    const n = 6;
+    const n = 5;
 
     // cells are the elements of a field (E = EMPTY, A = AGGRESSOR, V = VICTIM)
     for(var cells=[], i=0; i<n; i++) {
@@ -207,10 +213,10 @@ function Field(aggressor, victim) {
         for(var j=0; j<n; j++)
             cells[i][j] = 'E';
     }
-    cells[n/2-1][n/2-1] = 'A';
-    cells[n/2]  [n/2]   = 'A';
-    cells[n/2-1][n/2]   = 'V';
-    cells[n/2]  [n/2-1] = 'V';
+    cells[(n/2>>0)-1][(n/2>>0)-1] = 'A';
+    cells[(n/2>>0)]  [(n/2>>0)]   = 'A';
+    cells[(n/2>>0)-1][(n/2>>0)]   = 'V';
+    cells[(n/2>>0)]  [(n/2>>0)-1] = 'V';
 
     // changedCells is the optimisation: it keeps only those cells that were changed before
     for(var changedCells=[], k=0; k<n; k++)
