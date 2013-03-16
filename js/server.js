@@ -7,7 +7,7 @@ var mongo = require('mongojs');
 
 
 // global variables
-var _users = new Number();
+var _users = [];
 
 
 
@@ -125,12 +125,22 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         break;
                     case 'rating':
                         if (user!=null && user.state == 'ONLINE') {
-                            _users.sort(function(a, b) {
-                                for (var ratinga=0, i=0; i<a.history.length; i++) ratinga+=a.history[i];
-                                for (var ratingb=0, j=0; j<b.history.length; j++) ratingb+=a.history[j];
-                                return ratinga > ratingb ? 1 : ratinga < ratingb ? -1 : 0;
-                            });
-                            // TODO формирование рейтинга
+                            var rating = [];
+                            for (var i in _users) {
+                                var usr = _users[i];
+                                var history = usr.history;
+                                var histSize = history.length;
+                                rating.push({
+                                    name: usr.name,
+                                    games: histSize,
+                                    wins: history.filter(function(a) {return a > 0.5}).length,
+                                    loses: history.filter(function(a) {return a < 0.5}).length,
+                                    deadheats: history.filter(function(a) {return a == 0.5}).length,
+                                    percent: histSize > 0 ? history.reduce(function(a,b){return a+b;})/histSize : 0
+                                });
+                            }
+                            rating.sort(function(a, b) {return a.percent < b.percent ? 1 : -1});
+                            user.send({type: 'rating', data: rating});
                         }
                         else user.send({type: 'error', data: 6});
                         break;
@@ -157,6 +167,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
 });
 
 /**
+ * User object
  * @param connect
  * @param name
  * @param state (ONLINE, WAIT, ACTIVE, PASSIVE, OFFLINE)
@@ -170,13 +181,24 @@ function User(connect, name, state) {
     this.enemy = null;
     this.field = null;
 
+    /**
+     * Send an object to client through the websocket
+     * @param obj
+     */
     this.send = function(obj) {
         this.connect.sendUTF(JSON.stringify(obj));
         console.log('>> Message send to "' + this.name + '": ' + JSON.stringify(obj));
     }
 }
 
+/**
+ * Field object
+ * @param aggressor
+ * @param victim
+ * @constructor
+ */
 function Field(aggressor, victim) {
+    // field NxN
     const n = 6;
 
     // cells are the elements of a field (E = EMPTY, A = AGGRESSOR, V = VICTIM)
@@ -189,11 +211,19 @@ function Field(aggressor, victim) {
     cells[n/2]  [n/2]   = 'A';
     cells[n/2-1][n/2]   = 'V';
     cells[n/2]  [n/2-1] = 'V';
+
     // changedCells is the optimisation: it keeps only those cells that were changed before
     for(var changedCells=[], k=0; k<n; k++)
         for(var m=0; m<n; m++)
             changedCells.push({x: k, y: m, data: cells[k][m]});
 
+    /**
+     * performs one gamestep
+     * @param user
+     * @param x
+     * @param y
+     * @returns {string}
+     */
     this.doStep = function(user, x, y) {
         if (!ok(x, y) || cells[x][y] != 'E') return 'ERROR_0';
         changedCells.length = 0;
@@ -210,10 +240,19 @@ function Field(aggressor, victim) {
         return isFinished() ? 'FINISH' : 'CONTINUE';
     };
 
+    /**
+     * returns those cells which were changed during the last gamestep
+     * @returns {Array}
+     */
     this.getChangedCells = function() {
         return changedCells;
     };
 
+    /**
+     * returns score in format {mine, his, percent}
+     * @param user
+     * @returns {*}
+     */
     this.getScore = function(user) {
         for (var agressorScore=0, victimScore=0, i=0; i<n; i++)
             for (var j=0; j<n; j++)

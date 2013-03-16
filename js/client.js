@@ -5,6 +5,7 @@ goog.events.listen(goog.dom.getElement('auth'), goog.events.EventType.CLICK, fun
     var name = goog.dom.getElement('txtauth').value;
     websocket.send('auth', name);
     user = new ru.tomtrix.othello.User(name, websocket);
+    websocket.send('rating', null);
     e.preventDefault();
 });
 
