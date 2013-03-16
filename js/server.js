@@ -7,7 +7,6 @@ var mongo = require('mongojs');
 
 
 // global variables
-// USER = name: String => {connect: Connection; state: [ONLINE, ACTIVE, PASSIVE, OFFLINE]; history: Array[Int]}
 var _users = new Number();
 
 
@@ -157,7 +156,12 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
     });
 });
 
-
+/**
+ * @param connect
+ * @param name
+ * @param state (ONLINE, WAIT, ACTIVE, PASSIVE, OFFLINE)
+ * @constructor
+ */
 function User(connect, name, state) {
     this.connect = connect;
     this.name = name;
@@ -167,25 +171,27 @@ function User(connect, name, state) {
     this.field = null;
 
     this.send = function(obj) {
-        connect.sendUTF(JSON.stringify(obj));
+        this.connect.sendUTF(JSON.stringify(obj));
         console.log('>> Message send to "' + this.name + '": ' + JSON.stringify(obj));
     }
 }
 
 function Field(aggressor, victim) {
+    const n = 6;
+
     // cells are the elements of a field (E = EMPTY, A = AGGRESSOR, V = VICTIM)
-    for(var cells=[], i=0; i<10; i++) {
+    for(var cells=[], i=0; i<n; i++) {
         cells[i] = [];
-        for(var j=0; j<10; j++)
+        for(var j=0; j<n; j++)
             cells[i][j] = 'E';
     }
-    cells[4][4] = 'A';
-    cells[5][5] = 'A';
-    cells[4][5] = 'V';
-    cells[5][4] = 'V';
+    cells[n/2-1][n/2-1] = 'A';
+    cells[n/2]  [n/2]   = 'A';
+    cells[n/2-1][n/2]   = 'V';
+    cells[n/2]  [n/2-1] = 'V';
     // changedCells is the optimisation: it keeps only those cells that were changed before
-    for(var changedCells=[], k=0; k<10; k++)
-        for(var m=0; m<10; m++)
+    for(var changedCells=[], k=0; k<n; k++)
+        for(var m=0; m<n; m++)
             changedCells.push({x: k, y: m, data: cells[k][m]});
 
     this.doStep = function(user, x, y) {
@@ -209,8 +215,8 @@ function Field(aggressor, victim) {
     };
 
     this.getScore = function(user) {
-        for (var agressorScore=0, victimScore=0, i=0; i<10; i++)
-            for (var j=0; j<10; j++)
+        for (var agressorScore=0, victimScore=0, i=0; i<n; i++)
+            for (var j=0; j<n; j++)
                 if (cells[i][j] == 'A') agressorScore++;
                 else if (cells[i][j] == 'V') victimScore++;
         switch (user) {
@@ -228,8 +234,8 @@ function Field(aggressor, victim) {
      * @return {Boolean}
      */
     function isFinished() {
-        for(var i=0; i<10; i++)
-            for(var j=0; j<10; j++)
+        for(var i=0; i<n; i++)
+            for(var j=0; j<n; j++)
                 if (cells[i][j] == 'E')
                     return false;
         return true;
@@ -260,7 +266,7 @@ function Field(aggressor, victim) {
      * @return {Boolean}
      */
     function ok(x, y) {
-        return (x>=0 && y>=0 && x<10 && y<10);
+        return (x>=0 && y>=0 && x<n && y<n);
     }
 
     /**
