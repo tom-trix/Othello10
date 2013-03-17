@@ -11,14 +11,9 @@ function getStatus(state, name) {
                 e.preventDefault();
             });
             return t;
-        default: goog.dom.createDom('div', null, 'n/a');
+        default: return goog.dom.createDom('div', {style: 'text-align: center;'}, 'n/a');
     }
 }
-
-goog.events.listen(goog.dom.getElement('accept'), goog.events.EventType.CLICK, function(e) {
-    websocket.send('accept', '88');
-    e.preventDefault();
-});
 
 websocket.addHandler("ok", function(data) {
     console.log('ok ' + data);
@@ -29,8 +24,33 @@ websocket.addHandler('error', function(data) {
 });
 
 websocket.addHandler('challenge', function(data) {
-    goog.style.showElement(goog.dom.getElement('accept'), true);
-    goog.dom.getElement('accept').innerHTML = 'Accept (' + data + ')';
+    var t = 5;
+    var dialog = new goog.ui.Dialog(null, true);
+    dialog.setContent('<p>' + data + ' желает сразиться с вами! Принять вызов?</p><p style="text-align: right">' + t + ' сек.</p>');
+    dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createYesNo());
+    dialog.setEscapeToCancel(true);
+    dialog.setTitle('Вызов на бой');
+    dialog.setHasTitleCloseButton(true);
+    var timer = -1;
+    function escape() {
+        clearTimeout(timer);
+        websocket.send('escape', null);
+        dialog.setVisible(false);
+    }
+    timer = setInterval(function() {
+        if (t > 0)
+            goog.dom.getChildren(dialog.getContentElement())[1].innerHTML = (--t) + ' сек.';
+        else escape();
+    }, 1000);
+    goog.events.listen(dialog, goog.ui.Dialog.EventType.SELECT, function(e) {
+        if (e.key == 'yes') {
+            clearTimeout(timer);
+            websocket.send('accept', null);
+        }
+        else escape();
+    });
+
+    dialog.setVisible(true);
 });
 
 websocket.addHandler('active', function(data) {
@@ -104,7 +124,6 @@ setTimeout(function() {
         }
         else {
             websocket.send('auth', name);
-            websocket.send('rating', null);
             user = new ru.tomtrix.othello.User(name, websocket);
         }
     });

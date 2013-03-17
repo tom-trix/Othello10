@@ -57,6 +57,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                 user.state = StateEnum.ONLINE;
                             }
                             user.send('ok');
+                            _users.sendRatingToAll();
                         }
                         break;
                     case 'challenge':
@@ -68,6 +69,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                             victim.enemy = user;
                             user.send('ok');
                             victim.send('challenge', user.name);
+                            _users.sendRatingToAll();
                         }
                         else user.send('error', 'error in challenge');
                         break;
@@ -87,6 +89,19 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                             else user.send('error', 'error in accept (2)');
                         }
                         else user.send('error', 'error in accept (1)');
+                        break;
+                    case 'escape':
+                        if (user!=null && user.state == StateEnum.WAIT) {
+                            var agressor = user.enemy;
+                            if (agressor != null && agressor.state == StateEnum.WAIT) {
+                                user.enemy = null;
+                                user.state = StateEnum.ONLINE;
+                                agressor.state = StateEnum.ONLINE;
+                                _users.sendRatingToAll();
+                            }
+                            else user.send('error', 'error in escape (2)');
+                        }
+                        else user.send('error', 'error in escape (1)');
                         break;
                     case 'step':
                         if (user!=null && user.state == StateEnum.ACTIVE) {
@@ -124,11 +139,6 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                             else user.send('error', 'error in step (1)');
                         }
                         else user.send('error', 'error in step (1)');
-                        break;
-                    case 'rating':
-                        if (user!=null && user.state == StateEnum.ONLINE)
-                            _users.sendRatingToAll();
-                        else user.send('error', 'error in rating');
                         break;
                     default:
                         console.log('Unknown type: ' + json.type);
