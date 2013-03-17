@@ -1,9 +1,17 @@
-table, td, .th
+table
 {
+    border: 2px solid black;
+    left: 100px;
+}
+td, .th
+{
+    width: 75px;
+    text-align: center;
     border:1px solid green;
 }
 .th
 {
-    background-color:green;
+    background-color: #1f221f;
+    font-weight: bold;
     color:white;
 }

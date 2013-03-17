@@ -18,5 +18,11 @@ ru.tomtrix.othello.User = function(name, websocket) {
     this.setActive = function(active) {
         if (active) field.enable();
         else field.disable();
+    };
+
+    this.finish = function() {
+        goog.dom.removeNode(goog.dom.getElement('field'));
+        goog.style.showElement(goog.dom.getElement('score'), false);
+        field = null;
     }
 };

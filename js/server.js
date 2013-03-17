@@ -127,9 +127,10 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                         enemy.field = null;
                                         user.history.push(fld.getScore(user).percent);
                                         enemy.history.push(fld.getScore(enemy).percent);
+                                        _mongo.saveAll();
+                                        _users.sendRatingToAll();
                                         user.send('finish', fld.getChangedCells());
                                         enemy.send('finish', fld.getChangedCells());
-                                        _mongo.saveAll();
                                         break;
                                     default:
                                         console.log('Error step result from field ' + stepResult);
@@ -293,7 +294,7 @@ function User(connect, name, state) {
  */
 function Field(aggressor, victim) {
     // field NxN
-    const n = 5;
+    const n = 6;
 
     // cells are the elements of a field (E = EMPTY, A = AGGRESSOR, V = VICTIM)
     for(var cells=[], i=0; i<n; i++) {

@@ -1,17 +1,19 @@
 var websocket = new ru.tomtrix.othello.Websocket('ws://127.0.0.1:2666');
 var user = null;
+var table = null;
+var _score = -1;
 
 function getStatus(state, name) {
     switch (state) {
-        case 0: return goog.dom.createDom('div', {style: 'text-align: center;'}, '–');
+        case 0: return goog.dom.createDom('div', null, '–');
         case 1:
-            var t = goog.dom.createDom('a', {href: '', style: 'text-align: center; color: darkblue; font-weight: bold;'}, 'online');
+            var t = goog.dom.createDom('a', {href: '', style: 'color: darkblue; font-weight: bold;'}, 'online');
             goog.events.listen(t, goog.events.EventType.CLICK, function(e) {
                 websocket.send('challenge', name);
                 e.preventDefault();
             });
             return t;
-        default: return goog.dom.createDom('div', {style: 'text-align: center;'}, 'n/a');
+        default: return goog.dom.createDom('div', null, 'n/a');
     }
 }
 
@@ -28,9 +30,7 @@ websocket.addHandler('challenge', function(data) {
     var dialog = new goog.ui.Dialog(null, true);
     dialog.setContent('<p>' + data + ' желает сразиться с вами! Принять вызов?</p><p style="text-align: right">' + t + ' сек.</p>');
     dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createYesNo());
-    dialog.setEscapeToCancel(true);
     dialog.setTitle('Вызов на бой');
-    dialog.setHasTitleCloseButton(true);
     var timer = -1;
     function escape() {
         clearTimeout(timer);
@@ -54,28 +54,43 @@ websocket.addHandler('challenge', function(data) {
 });
 
 websocket.addHandler('active', function(data) {
-    if (user==null) return;
+    goog.style.showElement(table, false);
     user.updateField(data);
     user.setActive(true);
 });
 
 websocket.addHandler('passive', function(data) {
-    if (user==null) return;
+    goog.style.showElement(table, false);
     user.updateField(data);
     user.setActive(false);
 });
 
 websocket.addHandler('finish', function(data) {
-    if (user==null) return;
     user.updateField(data);
-    user.setActive(false);
+    var dialog = new goog.ui.Dialog(null, true);
+    dialog.setContent(_score > 50 ? 'Вы выиграли!' : _score < 50 ? 'Вы проиграли...' : 'Ничья...');
+    dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createOk());
+    dialog.setTitle('Game over');
+    goog.events.listen(dialog, goog.ui.Dialog.EventType.SELECT, function(e) {
+        console.log(e);
+        user.finish();
+    });
+    setTimeout(function() {
+        try {
+            user.finish();
+            dialog.setVisible(false);
+        } catch (e) {console.log(e);}
+    }, 4000);
+    dialog.setVisible(true);
 });
 
 websocket.addHandler('score', function(data) {
-    goog.dom.getElement('score').innerHTML = data.mine + "/" + data.his + '(' + Math.ceil(100*data.percent) + '%)'
+    _score = Math.round(100*data.percent);
+    var scor = goog.dom.getElement('score');
+    goog.style.showElement(scor, true);
+    scor.innerHTML = 'Score: ' + data.mine + "/" + data.his + '(' + _score + '%)'
 });
 
-var table = null;
 websocket.addHandler('rating', function(data) {
     if (table != null)
         goog.dom.removeNode(table);
@@ -125,6 +140,7 @@ setTimeout(function() {
         else {
             websocket.send('auth', name);
             user = new ru.tomtrix.othello.User(name, websocket);
+            goog.dom.getElement('hello').innerHTML = 'Hello, ' + name + '!';
         }
     });
     dialog.setVisible(true);
