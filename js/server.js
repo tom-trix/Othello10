@@ -1,14 +1,17 @@
 // imports
+//noinspection JSUnresolvedFunction
 var webSocketServer = require('websocket').server;
+//noinspection JSUnresolvedFunction
 var http = require('http');
+//noinspection JSUnresolvedFunction
 var mongo = require('mongojs');
 
 
 
 
 // global variables
-var _users = [];
-var _mongo = new Mongo('localhost', 27017, 'Othello', ['users']);
+var _users = new Users();
+var _mongo = new Mongo('localhost', 27017, 'Othello', ['users'], _users);
 
 
 
@@ -44,10 +47,10 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         if (userName.trim() == "" || userName.length > 20 || userName.indexOf('<') >= 0)
                             connection.sendUTF(JSON.stringify({type: 'error', data: 'Wrong name'}));
                         else {
-                            user = _users[userName];
+                            user = _users.get(userName);
                             if (user == null) {
                                 user = new User(connection, userName, StateEnum.ONLINE);
-                                _users[userName] = user;
+                                _users.add(user);
                             }
                             else {
                                 user.connect = connection;
@@ -58,8 +61,8 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         break;
                     case 'challenge':
                         var victimName = json.data;
-                        var victim =_users[victimName];
-                        if (user!=null && victim!=null && user.state == StateEnum.ONLINE && victim.state == StateEnum.ONLINE) {
+                        var victim =_users.get(victimName);
+                        if (user!=null && victim!=null && user.state==StateEnum.ONLINE && victim.state==StateEnum.ONLINE && user!=victim) {
                             user.state = StateEnum.WAIT;
                             victim.state = StateEnum.WAIT;
                             victim.enemy = user;
@@ -123,25 +126,8 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                         else user.send('error', 'error in step (1)');
                         break;
                     case 'rating':
-                        if (user!=null && user.state == StateEnum.ONLINE) {
-                            var rating = [];
-                            for (var i in _users) {
-                                var usr = _users[i];
-                                var history = usr.history;
-                                var histSize = history.length;
-                                rating.push({
-                                    name: usr.name,
-                                    state: usr.state,
-                                    games: histSize,
-                                    wins: history.filter(function(a) {return a > 0.5}).length,
-                                    loses: history.filter(function(a) {return a < 0.5}).length,
-                                    deadheats: history.filter(function(a) {return a == 0.5}).length,
-                                    percent: (histSize > 0 ? history.reduce(function(a,b){return a+b;})/histSize : 0).toFixed(2)
-                                });
-                            }
-                            rating.sort(function(a, b) {return a.percent < b.percent ? 1 : -1});
-                            user.send('rating', rating);
-                        }
+                        if (user!=null && user.state == StateEnum.ONLINE)
+                            _users.sendRatingToAll();
                         else user.send('error', 'error in rating');
                         break;
                     default:
@@ -158,8 +144,54 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
         console.log((new Date()) + ' Client "' + (user!=null ? user.name : 'unknown') + '" shut down... ' + conn.toString());
         if (user!=null)
             user.state = StateEnum.OFFLINE;
+        _users.sendRatingToAll();
     });
 });
+
+function Users() {
+    var all = [];
+
+    this.get = function(name) {
+        return all[name];
+    };
+
+    this.add = function(user) {
+        all[user.name] = user;
+    };
+
+    this.getArray = function() {
+        var result = [];
+        for (var i in all) {
+            //noinspection JSUnfilteredForInLoop
+            result.push(all[i]);
+        }
+        return result;
+    };
+
+    this.sendRatingToAll = function() {
+        var rating = [];
+        for (var i=0; i<_users.getArray().length; i++) {
+            var usr = _users.getArray()[i];
+            var history = usr.history;
+            var histSize = history.length;
+            rating.push({
+                name: usr.name,
+                state: usr.state,
+                games: histSize,
+                wins: history.filter(function(a) {return a > 0.5}).length,
+                loses: history.filter(function(a) {return a < 0.5}).length,
+                deadheats: history.filter(function(a) {return a == 0.5}).length,
+                percent: (histSize > 0 ? history.reduce(function(a,b){return a+b;})/histSize : 0).toFixed(2)
+            });
+        }
+        rating.sort(function(a, b) {return a.percent < b.percent ? 1 : -1});
+        for (var j=0; j<_users.getArray().length; j++) {
+            var user = _users.getArray()[j];
+            if (user.state == StateEnum.ONLINE || user.state == StateEnum.WAIT)
+                user.send('rating', rating);
+        }
+    }
+}
 
 /**
  * MongoDB worker
@@ -167,25 +199,28 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
  * @param {String|number} port
  * @param {String} database
  * @param {Array} collection
+ * @param {Users} users
  * @constructor
  */
-function Mongo(host, port, database, collection) {
+function Mongo(host, port, database, collection, users) {
     var db = mongo.connect(host + ':' + port + '/' + database, collection);
-    db.users.find({}, function(err, data) {
+    //noinspection JSUnresolvedVariable
+    var coll = db.users;
+    coll.find({}, function(err, data) {
         for (var i=0; i<data.length; i++) {
             var user = new User(null, data[i].name, StateEnum.OFFLINE);
             user.history = data[i].history;
-            _users[user.name] = user;
+            users.add(user);
             console.log(user.name + ' loaded...');
         }
     });
 
     this.saveAll = function() {
-        db.users.remove();
-        for (var i in _users) {
-            var us = _users[i];
+        coll.remove();
+        for (var i=0; i<users.getArray().length; i++) {
+            var us = users.getArray()[i];
             if (us.history.length > 0)
-                db.users.insert({name: us.name, history: us.history});
+                coll.insert({name: us.name, history: us.history});
         }
     }
 }
@@ -370,9 +405,9 @@ function Field(aggressor, victim) {
  * @type {{ONLINE: number, OFFLINE: number, ACTIVE: number, PASSIVE: number, WAIT: number}}
  */
 StateEnum = {
-    ONLINE: 0,
-    OFFLINE: 1,
-    ACTIVE: 2,
-    PASSIVE: 3,
-    WAIT: 4
+    OFFLINE: 0,
+    ONLINE: 1,
+    WAIT: 2,
+    ACTIVE: 3,
+    PASSIVE: 4
 };

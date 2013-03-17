@@ -1,10 +1,19 @@
 var websocket = new ru.tomtrix.othello.Websocket('ws://127.0.0.1:2666');
 var user = null;
 
-goog.events.listen(goog.dom.getElement('challenge'), goog.events.EventType.CLICK, function(e) {
-    websocket.send('challenge', goog.dom.getElement('txtchallenge').value);
-    e.preventDefault();
-});
+function getStatus(state, name) {
+    switch (state) {
+        case 0: return goog.dom.createDom('div', {style: 'text-align: center;'}, '–');
+        case 1:
+            var t = goog.dom.createDom('a', {href: '', style: 'text-align: center; color: darkblue; font-weight: bold;'}, 'online');
+            goog.events.listen(t, goog.events.EventType.CLICK, function(e) {
+                websocket.send('challenge', name);
+                e.preventDefault();
+            });
+            return t;
+        default: goog.dom.createDom('div', null, 'n/a');
+    }
+}
 
 goog.events.listen(goog.dom.getElement('accept'), goog.events.EventType.CLICK, function(e) {
     websocket.send('accept', '88');
@@ -62,7 +71,7 @@ websocket.addHandler('rating', function(data) {
     goog.array.forEach(data, function(item) {
         var row = table.insertRow(-1);
         row.insertCell(-1).innerHTML = item.name;
-        row.insertCell(-1).innerHTML = item.state;
+        goog.dom.appendChild(row.insertCell(-1), getStatus(item.state, item.name));
         row.insertCell(-1).innerHTML = item.games;
         row.insertCell(-1).innerHTML = item.wins;
         row.insertCell(-1).innerHTML = item.deadheats;
