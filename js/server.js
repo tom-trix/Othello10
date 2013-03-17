@@ -8,19 +8,7 @@ var mongo = require('mongojs');
 
 // global variables
 var _users = [];
-
-
-
-
-// load data from MongoDB
-var db = mongo.connect('localhost:27017/Othello', ['users']);
-db.users.find({}, function(err, data) {
-    for (var i=0; i<data.length; i++) {
-        var user = new User(null, data[i].name, StateEnum.OFFLINE);
-        user.history = data[i].history;
-        _users[user.name] = user;
-    }
-});
+var _mongo = new Mongo('localhost', 27017, 'Othello', ['users']);
 
 
 
@@ -53,16 +41,20 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                 switch (json.type) {
                     case 'auth':
                         var userName = json.data;
-                        user = _users[userName];
-                        if (user == null) {
-                            user = new User(connection, userName, StateEnum.ONLINE);
-                            _users[userName] = user;
-                        }
+                        if (userName.trim() == "" || userName.length > 20 || userName.indexOf('<') >= 0)
+                            connection.sendUTF(JSON.stringify({type: 'error', data: 'Wrong name'}));
                         else {
-                            user.connect = connection;
-                            user.state = StateEnum.ONLINE;
+                            user = _users[userName];
+                            if (user == null) {
+                                user = new User(connection, userName, StateEnum.ONLINE);
+                                _users[userName] = user;
+                            }
+                            else {
+                                user.connect = connection;
+                                user.state = StateEnum.ONLINE;
+                            }
+                            user.send('ok');
                         }
-                        user.send('ok');
                         break;
                     case 'challenge':
                         var victimName = json.data;
@@ -74,7 +66,7 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                             user.send('ok');
                             victim.send('challenge', user.name);
                         }
-                        else user.send('error', {error: 'challenge', user: user, victim: victim});
+                        else user.send('error', 'error in challenge');
                         break;
                     case 'accept':
                         if (user!=null && user.state == StateEnum.WAIT) {
@@ -89,9 +81,9 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                 user.send('passive', field.getChangedCells());
                                 aggressor.send('active', field.getChangedCells());
                             }
-                            else user.send('error', {error: 'accept2', aggressor: aggressor});
+                            else user.send('error', 'error in accept (2)');
                         }
-                        else user.send('error', {error: 'accept1', user: user});
+                        else user.send('error', 'error in accept (1)');
                         break;
                     case 'step':
                         if (user!=null && user.state == StateEnum.ACTIVE) {
@@ -119,20 +111,16 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                         enemy.history.push(fld.getScore(enemy).percent);
                                         user.send('finish', fld.getChangedCells());
                                         enemy.send('finish', fld.getChangedCells());
-                                        db.users.remove();
-                                        for (var j in _users) {
-                                            var us = _users[j];
-                                            db.users.insert({name: us.name, history: us.history});
-                                        }
+                                        _mongo.saveAll();
                                         break;
                                     default:
                                         console.log('Error step result from field ' + stepResult);
                                         user.send('error', 'unknown constant ' + stepResult);
                                 }
                             }
-                            else user.send('error', {error: 'step2', field: fld, enemy: enemy});
+                            else user.send('error', 'error in step (1)');
                         }
-                        else user.send('error', {error: 'step1', user: user});
+                        else user.send('error', 'error in step (1)');
                         break;
                     case 'rating':
                         if (user!=null && user.state == StateEnum.ONLINE) {
@@ -148,13 +136,13 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
                                     wins: history.filter(function(a) {return a > 0.5}).length,
                                     loses: history.filter(function(a) {return a < 0.5}).length,
                                     deadheats: history.filter(function(a) {return a == 0.5}).length,
-                                    percent: histSize > 0 ? history.reduce(function(a,b){return a+b;})/histSize : 0
+                                    percent: (histSize > 0 ? history.reduce(function(a,b){return a+b;})/histSize : 0).toFixed(2)
                                 });
                             }
                             rating.sort(function(a, b) {return a.percent < b.percent ? 1 : -1});
                             user.send('rating', rating);
                         }
-                        else user.send('error', {error: 'rating', user: user});
+                        else user.send('error', 'error in rating');
                         break;
                     default:
                         console.log('Unknown type: ' + json.type);
@@ -174,10 +162,39 @@ new webSocketServer({httpServer: _server}).on('request', function(request) {
 });
 
 /**
+ * MongoDB worker
+ * @param {String} host
+ * @param {String|number} port
+ * @param {String} database
+ * @param {Array} collection
+ * @constructor
+ */
+function Mongo(host, port, database, collection) {
+    var db = mongo.connect(host + ':' + port + '/' + database, collection);
+    db.users.find({}, function(err, data) {
+        for (var i=0; i<data.length; i++) {
+            var user = new User(null, data[i].name, StateEnum.OFFLINE);
+            user.history = data[i].history;
+            _users[user.name] = user;
+            console.log(user.name + ' loaded...');
+        }
+    });
+
+    this.saveAll = function() {
+        db.users.remove();
+        for (var i in _users) {
+            var us = _users[i];
+            if (us.history.length > 0)
+                db.users.insert({name: us.name, history: us.history});
+        }
+    }
+}
+
+/**
  * User object
- * @param connect
- * @param name
- * @param state {StateEnum}
+ * @param {Connection} connect
+ * @param {String} name
+ * @param {number} state
  * @constructor
  */
 function User(connect, name, state) {
@@ -225,8 +242,8 @@ function User(connect, name, state) {
 
 /**
  * Field object
- * @param aggressor
- * @param victim
+ * @param {User} aggressor
+ * @param {User} victim
  * @constructor
  */
 function Field(aggressor, victim) {
@@ -251,10 +268,10 @@ function Field(aggressor, victim) {
 
     /**
      * performs one gamestep
-     * @param user
-     * @param x
-     * @param y
-     * @returns {string}
+     * @param {User} user
+     * @param {number} x
+     * @param {number} y
+     * @returns {string} FINISH or CONTINUE
      */
     this.doStep = function(user, x, y) {
         if (!ok(x, y) || cells[x][y] != 'E') return 'ERROR_0';
@@ -314,10 +331,10 @@ function Field(aggressor, victim) {
 
     /**
      * performs the calculation of the cell[x,y] following the rules of the game
-     * @param x
-     * @param y
-     * @param mine
-     * @param his
+     * @param {number} x x-coordinate
+     * @param {number} y y-coordinate
+     * @param {String} mine A or V
+     * @param {String} his A or V
      */
     function acquire(x, y, mine, his) {
         cells[x][y] = mine;
@@ -332,8 +349,8 @@ function Field(aggressor, victim) {
 
     /**
      * Checks whether the cell is inside the field
-     * @param x
-     * @param y
+     * @param {number} x x-coordinate
+     * @param {number} y y-coordinate
      * @return {Boolean}
      */
     function ok(x, y) {
@@ -342,8 +359,8 @@ function Field(aggressor, victim) {
 
     /**
      * returns signum(x)
-     * @param x
-     * @return {Number}
+     * @param {number} x
+     * @return {number}
      */
     function sign(x) { return x > 0 ? 1 : x < 0 ? -1 : 0; }
 }

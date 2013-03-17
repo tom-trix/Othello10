@@ -54,6 +54,11 @@ ru.tomtrix.othello.Websocket = function(address) {
         connection.send(JSON.stringify({type: type, data: data}))
     };
 
+    /**
+     * Adds handler to the websocket
+     * @param {String} type
+     * @param {Function} func1
+     */
     this.addHandler = function(type, func1) {
         handlers[type] = func1;
     }

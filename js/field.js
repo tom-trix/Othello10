@@ -13,17 +13,24 @@ goog.require('goog.events.EventType');
  * @constructor few
  */
 ru.tomtrix.othello.Field = function(data, websocket) {
+    const h=30; //image size
+    function getImage(value) {
+        return 'img/' + (value=='A' ? 'black' : value=='V' ? 'white' : 'blank') + '.png';
+    }
+
     var cellsDOM = [];
     goog.array.forEach(data, function(cell) {
-        cellsDOM.push(goog.dom.createDom('div', {
+        cellsDOM.push(goog.dom.createDom('img', {
             id: cell.x.toString() + '-' + cell.y,
-            style: 'position: absolute; width: 20px; height: 20px; left: ' + (2+cell.x*22) + 'px; top: ' + (2+cell.y*22) + 'px; background-color: #4f8;'
-        }, cell.data));
+            src: getImage(cell.data),
+            style: 'position: absolute; width: 50px; height: 50px; left: ' + (2+cell.x*h) + 'px; top: ' + (2+cell.y*h) + 'px; border-width: 1px; border: solid #7ef;'
+        }));
     });
 
+    var H = (2+h)*Math.sqrt(data.length); //full field size
     var fieldDOM = goog.dom.createDom('div', {
         id: 'field',
-        style: 'position: relative; width: 222px; height: 222px; left: 100px; background-color: #5678e3;'
+        style: 'position: relative; width: ' + H + 'px; height: ' + H +'px; left: 100px; background-color: #88abe3;'
     }, cellsDOM);
     goog.dom.appendChild(goog.dom.getElement('main'), fieldDOM);
 
@@ -46,7 +53,8 @@ ru.tomtrix.othello.Field = function(data, websocket) {
 
     this.changeValue = function(data) {
         try {
-            goog.dom.getElement(data.x.toString() + '-' + data.y).innerHTML = data.data;
+            var item = goog.dom.getElement(data.x.toString() + '-' + data.y);
+            item.setAttribute('src', getImage(data.data));
         } catch(e) {console.log(e.toString());}
     }
 };
