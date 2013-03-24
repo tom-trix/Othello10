@@ -3,7 +3,7 @@ var user = null;
 var table = null;
 var _score = -1;
 
-function getStatus(state, name) {
+var getStatus = function(state, name) {
     switch (state) {
         case 0: return goog.dom.createDom('div', null, '–');
         case 1:
@@ -15,7 +15,17 @@ function getStatus(state, name) {
             return t;
         default: return goog.dom.createDom('div', null, 'n/a');
     }
-}
+};
+
+var changeTurn = function(active) {
+    goog.array.forEach(goog.dom.getElementsByClass('battle'), function(item) {
+        goog.style.showElement(item, true);
+    });
+    var turn = goog.dom.getElement('turn');
+    turn.innerHTML = active ? 'Ваш ход' : 'Ход противника';
+    goog.dom.classes.enable(turn, 'turn-on', active);
+    goog.dom.classes.enable(turn, 'turn-off', !active);
+};
 
 websocket.addHandler("ok", function(data) {
     console.log('ok ' + data);
@@ -55,12 +65,14 @@ websocket.addHandler('challenge', function(data) {
 
 websocket.addHandler('active', function(data) {
     goog.style.showElement(table, false);
+    changeTurn(true);
     user.updateField(data);
     user.setActive(true);
 });
 
 websocket.addHandler('passive', function(data) {
     goog.style.showElement(table, false);
+    changeTurn(false);
     user.updateField(data);
     user.setActive(false);
 });
@@ -80,15 +92,14 @@ websocket.addHandler('finish', function(data) {
             user.finish();
             dialog.setVisible(false);
         } catch (e) {console.log(e);}
-    }, 4000);
+    }, 4500);
     dialog.setVisible(true);
+    _score = -1;
 });
 
 websocket.addHandler('score', function(data) {
     _score = Math.round(100*data.percent);
-    var scor = goog.dom.getElement('score');
-    goog.style.showElement(scor, true);
-    scor.innerHTML = 'Score: ' + data.mine + "/" + data.his + '(' + _score + '%)'
+    goog.dom.getElement('score').innerHTML = 'Score: ' + data.mine + "/" + data.his + '(' + _score + '%)'
 });
 
 websocket.addHandler('rating', function(data) {
@@ -147,4 +158,3 @@ setTimeout(function() {
     input.focus();
 
 }, 100);
-

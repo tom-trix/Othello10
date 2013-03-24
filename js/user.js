@@ -22,7 +22,9 @@ ru.tomtrix.othello.User = function(name, websocket) {
 
     this.finish = function() {
         goog.dom.removeNode(goog.dom.getElement('field'));
-        goog.style.showElement(goog.dom.getElement('score'), false);
         field = null;
+        goog.array.forEach(goog.dom.getElementsByClass('battle'), function(item) {
+            goog.style.showElement(item, false);
+        });
     }
 };
