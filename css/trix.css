@@ -13,3 +13,7 @@ h2 {
     width: 100px;
     height: 28px;
 }
+
+.center {
+    margin: 0 auto
+}

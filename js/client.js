@@ -1,4 +1,4 @@
-var websocket = new ru.tomtrix.othello.Websocket('ws://127.0.0.1:2666');
+var websocket = new ru.tomtrix.othello.Websocket('ws://46.146.231.100:7703');
 var user = null;
 var table = null;
 var _score = -1;
@@ -96,7 +96,7 @@ websocket.addHandler('rating', function(data) {
         goog.dom.removeNode(table);
 
     var headers = ['Имя', 'Онлайн', 'Всего', 'Побед', 'Ничьих', 'Поражений', 'Рейтинг (%)'];
-    table = goog.dom.createDom('table');
+    table = goog.dom.createDom('table', {class: 'center'});
     var header = table.insertRow(-1);
     goog.array.forEach(headers, function(item) {
         var cell = header.insertCell(-1);

@@ -30,7 +30,8 @@ ru.tomtrix.othello.Field = function(data, websocket) {
     var H = (2+h)*Math.sqrt(data.length); //full field size
     var fieldDOM = goog.dom.createDom('div', {
         id: 'field',
-        style: 'position: relative; width: ' + (H+2) + 'px; height: ' + (H+2) + 'px; left: 100px; background-color: #c9daef; border: solid 7px #111; border-radius: 10px;'
+        class: 'center',
+        style: 'position: relative; width: ' + (H+2) + 'px; height: ' + (H+2) + 'px; background-color: #c9daef; border: solid 7px #111; border-radius: 10px;'
     }, cellsDOM);
     goog.dom.appendChild(goog.dom.getElement('main'), fieldDOM);
 

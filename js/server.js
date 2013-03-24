@@ -11,13 +11,13 @@ var mongo = require('mongojs');
 
 // global variables
 var _users = new Users();
-var _mongo = new Mongo('localhost', 27017, 'Othello', ['users'], _users);
+var _mongo = new Mongo('localhost', 7701, 'Othello', ['users'], _users);
 
 
 
 
 // create HTTP-Server
-const port = 2666;
+const port = 7703;
 var _server = http.createServer();
 _server.listen(port, function() {
     console.log((new Date()) + ' Server is listening on port ' + port);
