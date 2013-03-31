@@ -1,4 +1,5 @@
-Othello10
+Othello
 =========
 
-Othello10 Client-Server online multiplayer game
+Othello Client-Server online multiplayer game
+Compiled with Google Closure

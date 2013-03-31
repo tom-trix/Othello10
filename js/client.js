@@ -1,8 +1,29 @@
+/**
+ * @private
+ * @type {ru.tomtrix.othello.Websocket}
+ */
 var websocket = new ru.tomtrix.othello.Websocket('ws://46.146.231.100:7703');
+/**
+ * @private
+ * @type {ru.tomtrix.othello.User}
+ */
 var user = null;
+/**
+ * @private
+ */
 var table = null;
+/**
+ * @type {number}
+ * @private
+ */
 var _score = -1;
 
+
+/**
+ * @param {number} state state
+ * @param {string} name username
+ * @returns {!Element} Element containing status of user (online/offline and so on)
+ */
 var getStatus = function(state, name) {
     switch (state) {
         case 0: return goog.dom.createDom('div', null, '–');
@@ -17,6 +38,10 @@ var getStatus = function(state, name) {
     }
 };
 
+/**
+ * chenges the turn from one user to another
+ * @param {boolean} active
+ */
 var changeTurn = function(active) {
     goog.array.forEach(goog.dom.getElementsByClass('battle'), function(item) {
         goog.style.showElement(item, true);
@@ -28,16 +53,16 @@ var changeTurn = function(active) {
 };
 
 websocket.addHandler("ok", function(data) {
-    console.log('ok ' + data);
+    window.console.log('ok ' + data);
 });
 
 websocket.addHandler('error', function(data) {
-    console.log('server internal error: ' + data);
+    window.console.log('server internal error: ' + data);
 });
 
 websocket.addHandler('challenge', function(data) {
-    var t = 5;
-    var dialog = new goog.ui.Dialog(null, true);
+    var t = 10;
+    var dialog = new goog.ui.Dialog(undefined, true);
     dialog.setContent('<p>' + data + ' желает сразиться с вами! Принять вызов?</p><p style="text-align: right">' + t + ' сек.</p>');
     dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createYesNo());
     dialog.setTitle('Вызов на бой');
@@ -79,27 +104,27 @@ websocket.addHandler('passive', function(data) {
 
 websocket.addHandler('finish', function(data) {
     user.updateField(data);
-    var dialog = new goog.ui.Dialog(null, true);
+    var dialog = new goog.ui.Dialog(undefined, true);
     dialog.setContent(_score > 50 ? 'Вы выиграли!' : _score < 50 ? 'Вы проиграли...' : 'Ничья...');
     dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createOk());
     dialog.setTitle('Game over');
     goog.events.listen(dialog, goog.ui.Dialog.EventType.SELECT, function(e) {
-        console.log(e);
+        window.console.log(e);
         user.finish();
     });
     setTimeout(function() {
         try {
             user.finish();
             dialog.setVisible(false);
-        } catch (e) {console.log(e);}
+        } catch (e) {window.console.log(e);}
     }, 4500);
     dialog.setVisible(true);
     _score = -1;
 });
 
 websocket.addHandler('score', function(data) {
-    _score = Math.round(100*data.percent);
-    goog.dom.getElement('score').innerHTML = 'Score: ' + data.mine + "/" + data.his + '(' + _score + '%)'
+    _score = Math.round(100*data['percent']);
+    goog.dom.getElement('score').innerHTML = 'Score: ' + data['mine'] + "/" + data['his'] + '(' + _score + '%)'
 });
 
 websocket.addHandler('rating', function(data) {
@@ -107,7 +132,7 @@ websocket.addHandler('rating', function(data) {
         goog.dom.removeNode(table);
 
     var headers = ['Имя', 'Онлайн', 'Всего', 'Побед', 'Ничьих', 'Поражений', 'Рейтинг (%)'];
-    table = goog.dom.createDom('table', {class: 'center'});
+    table = goog.dom.createDom('table', {'class': 'center'});
     var header = table.insertRow(-1);
     goog.array.forEach(headers, function(item) {
         var cell = header.insertCell(-1);
@@ -116,19 +141,22 @@ websocket.addHandler('rating', function(data) {
     });
     goog.array.forEach(data, function(item) {
         var row = table.insertRow(-1);
-        row.insertCell(-1).innerHTML = item.name;
-        goog.dom.appendChild(row.insertCell(-1), getStatus(item.state, item.name));
-        row.insertCell(-1).innerHTML = item.games;
-        row.insertCell(-1).innerHTML = item.wins;
-        row.insertCell(-1).innerHTML = item.deadheats;
-        row.insertCell(-1).innerHTML = item.loses;
-        row.insertCell(-1).innerHTML = item.percent;
+        row.insertCell(-1).innerHTML = item['name'];
+        goog.dom.appendChild(row.insertCell(-1), getStatus(item['state'], item['name']));
+        row.insertCell(-1).innerHTML = item['games'];
+        row.insertCell(-1).innerHTML = item['wins'];
+        row.insertCell(-1).innerHTML = item['deadheats'];
+        row.insertCell(-1).innerHTML = item['loses'];
+        row.insertCell(-1).innerHTML = item['percent'];
     });
     goog.dom.appendChild(goog.dom.getElement('main'), table);
 });
 
+/**
+ * Entry point
+ */
 setTimeout(function() {
-    var dialog = new goog.ui.Dialog(null, true);
+    var dialog = new goog.ui.Dialog(undefined, true);
     dialog.setContent('<input id="entername" label="input your name here..."/>');
     dialog.setButtonSet(goog.ui.Dialog.ButtonSet.createOk());
     dialog.setTitle('Введите имя');
